@@ -2,6 +2,13 @@
 
 A production-grade, cloud-native backend infrastructure deployed on AWS using Terraform, featuring containerized microservices, managed PostgreSQL, and CI/CD automation via GitHub Actions with OIDC authentication.
 
+> [!IMPORTANT]
+> **The AWS environment described here was fully torn down on 2026-10-03 — no resources
+> remain.** This repository is a working template: use the
+> [Deployment Guide](#deployment-guide) to rebuild it from scratch, and see
+> **[TEARDOWN.md](TEARDOWN.md)** for the destroy runbook, the resource inventory as it
+> last existed, and every gotcha hit while tearing it down.
+
 ---
 
 ## Table of Contents
@@ -15,6 +22,7 @@ A production-grade, cloud-native backend infrastructure deployed on AWS using Te
 - [Cost Model](#cost-model)
 - [Getting Started](#getting-started)
 - [Deployment Guide](#deployment-guide)
+- [Teardown Record](TEARDOWN.md)
 - [Key Design Decisions](#key-design-decisions)
 - [Project Structure](#project-structure)
 - [Environment Variables](#environment-variables)
@@ -241,7 +249,7 @@ aws sts get-caller-identity --profile ENOFE
 ### 3. Clone Repository
 
 ```bash
-git clone https://github.com/IsiakaOladayo/tradecore-project2.git
+git clone https://github.com/Isiaka-Ismail/tradecore-project2.git
 cd tradecore-project2
 ```
 
@@ -254,6 +262,19 @@ cd tradecore-project2
 ```bash
 cd terraform
 
+# Required variables have no defaults, so Terraform refuses to plan at all without
+# them — even when targeting a single module. Export them first; placeholders are
+# fine for the bootstrap, Phase 4 replaces them with real values.
+export TF_VAR_environment=production
+export TF_VAR_aws_profile=ENOFE
+export TF_VAR_container_image=placeholder
+export TF_VAR_db_name=tradecore
+export TF_VAR_db_username=tradecoreDB
+export TF_VAR_db_password='<YOUR_DB_PASSWORD>'
+export TF_VAR_jwt_secret='<YOUR_JWT_SECRET>'
+export TF_VAR_github_org_id='<GITHUB_ORG_ID>'
+export TF_VAR_github_repo_id='<GITHUB_REPO_ID>'
+
 # Initialize without backend (state not yet created)
 terraform init -backend=false
 
@@ -263,15 +284,21 @@ terraform plan -target=module.state
 # Create state infrastructure (S3 bucket + DynamoDB table)
 terraform apply -target=module.state
 
-# Get state bucket and table names
-terraform output -target=module.state
+# Get state bucket and table names (terraform output accepts one NAME at a time)
+terraform output state_bucket_name
+terraform output state_dynamodb_table_name
 ```
 
 ### Phase 2: Migrate to Remote State
 
 ```bash
-# Re-initialize with backend configured
-terraform init -migrate-state
+# backend.tf ships with an empty backend block — bucket/key/region are supplied at
+# init time, exactly as CI does in .github/workflows/terraform.yml.
+terraform init -migrate-state \
+  -backend-config="bucket=<STATE_BUCKET>" \
+  -backend-config="key=<STATE_KEY>" \
+  -backend-config="region=af-south-1" \
+  -backend-config="use_lockfile=true"
 ```
 
 ### Phase 3: Configure GitHub Secrets
@@ -304,6 +331,9 @@ export TF_VAR_db_username=tradecoreDB
 export TF_VAR_db_password='<YOUR_DB_PASSWORD>'
 export TF_VAR_jwt_secret='<YOUR_JWT_SECRET>'
 export TF_VAR_container_image='<YOUR_ECR_IMAGE_URI>'
+# Numeric IDs for the OIDC trust conditions — also required, no defaults
+export TF_VAR_github_org_id='<GITHUB_ORG_ID>'
+export TF_VAR_github_repo_id='<GITHUB_REPO_ID>'
 # Optional: export TF_VAR_certificate_arn='<CERT_ARN>'  # enables HTTPS
 terraform plan
 
@@ -349,7 +379,6 @@ tradecore-project2/
 │       ├── terraform.yml          # CI/CD pipeline (OIDC)
 │       └── drift.yml              # Daily drift detection (read-only)
 ├── Acm/                          # ACM module (dormant; LE-import used instead)
-├── Amplify/                       # Amplify module (retired; frontend console-managed)
 ├── Ecr/                           # ECR repository module
 │   ├── main.tf
 │   ├── variables.tf
