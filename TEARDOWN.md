@@ -242,3 +242,7 @@ resources in every other region.
 Follow [README → Deployment Guide](README.md#deployment-guide): bootstrap `module.state`,
 migrate the backend, set the GitHub secrets, then `terraform plan` / `terraform apply`.
 Estimated steady-state cost: **~$30–50/month** (see [Cost Model](README.md#cost-model)).
+
+First step, before anything else: a local `terraform/.terraform/` still references the
+destroyed state bucket, so clear it (`rm -rf .terraform && terraform init -backend=false`) —
+the guide opens with that note.

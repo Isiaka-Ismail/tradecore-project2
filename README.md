@@ -257,6 +257,21 @@ cd tradecore-project2
 
 ## Deployment Guide
 
+> [!IMPORTANT]
+> **Running this after the 2026-10-03 teardown?** A local `terraform/.terraform/` may still
+> point at the deleted backend bucket (`tradecore-production-tfstate`), so every command fails
+> up front with `NoSuchBucket: The specified bucket does not exist`. Clear the stale backend
+> metadata and re-initialize before Phase 1:
+>
+> ```bash
+> cd terraform
+> rm -rf .terraform          # stale backend config referencing a bucket that no longer exists
+> terraform init -backend=false
+> ```
+>
+> (`terraform/.terraform/` and `terraform/*.tfstate*` are gitignored, so this is a purely
+> local cleanup — the repo itself carries no state.)
+
 ### Phase 1: Bootstrap State Infrastructure
 
 ```bash
